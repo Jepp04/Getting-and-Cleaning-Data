@@ -1,0 +1,125 @@
+---
+title: "CodeBook"
+author: "Ulrich v. Staden"
+date: "15/07/2021"
+output: html_document
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Getting-and-Cleaning-Data
+This document is used as a reference to explain all the code used in run_analysis.R file in brief.
+
+### Libraries
+
+```{r echo=TRUE}
+library(dplyr)
+library(tidyr)
+library(data.table)
+```
+These are the libraries required to execute the code in run_analysis.R file.
+
+### Test and Train Data
+
+```{r echo=TRUE}
+## Read all test and train data in to R
+# Test Data
+xTest <- fread("UCI HAR Dataset/test/X_test.txt",sep = " ")
+yTest <- fread("UCI HAR Dataset/test/Y_test.txt",sep = " ")
+subjectTest <- fread("UCI HAR Dataset/test/subject_test.txt",sep = " ")
+
+# Train Data
+xTrain <- fread("UCI HAR Dataset/train/X_train.txt",sep = " ")
+yTrain <- fread("UCI HAR Dataset/train/Y_train.txt",sep = " ")
+subjectTrain <- fread("UCI HAR Dataset/train/subject_train.txt",sep = " ")
+```
+
+The function *fread* was used to read all the required data in to R, the function took 2 main arguments the path and the separation character, which in this case was a single space.
+
+The X data contains all the actual measurements obtained from accelerometer and gyroscope 3 axial sensors for both the train and test data.
+
+The Y data contains the corresponding activity number for each record in the X data.
+
+There are in total 30 subjects and the subject data contains the corresponding subjects number for each record in the X data and the activity executed.
+
+### Load Variable Names and Labels
+
+```{r echo = TRUE}
+## Load all Activity and Feature labels
+activityLabels <- fread("UCI HAR Dataset/activity_labels.txt",sep = " ")
+features <- fread("UCI HAR Dataset/features.txt",sep = " ")
+```
+
+The code above also uses fread to collect all the activity and feature labels. All the features are obtained from the data supplied by the accelerometer and gyroscope 3 axial sensors. These feature labels uses the following as acronyms (Only Acronyms in data used are listed below):
+
+| Acronym |     Description    |
+|:-------:|:------------------:|
+|    t    |        Time        |
+|    f    |      Frequency     |
+|   Gyro  |      Gyroscope     |
+|   Acc   |    Accelerometer   |
+|   Mag   |      Magnitude     |
+| mean    | Average            |
+| std     | Standard Deviation |
+
+
+The activity labels contain all the activities executed by the subjects:
+
+1. WALKING
+2. WALKING_UPSTAIRS
+3. WALKING_DOWNSTAIRS
+4. SITTING
+5. STANDING
+6. LAYING
+
+
+The following code assigns these labels to the correct variables and combine the X, Y and subject data from the test and the train together into 3 separate data sets through the uses of *rbind.data.frame*. This function appends the records from each data set and therefor will contain the exact same amount of columns afterwards.
+
+```{r xTest, yTest, subjectTes,t xTrain, yTrain, subjectTrain, echo = TRUE}
+## Add Variable Names
+resultX <- rbind.data.frame(xTest,xTrain)
+names(resultX) <- features$V2
+resultY <- rbind.data.frame(yTest,yTrain)
+names(resultY) <-"Activity"
+resultsubject <- rbind.data.frame(subjectTest,subjectTrain)
+names(resultsubject) <-"Subject"
+```
+
+The following code replaces the activity number with the respective label which is more descriptive than a number with the function called *sub*. This function was executed 6 times, because of there being 6 different activities and therefor required 6 different replacements. 
+```{r resultY, activityLabels, echo = TRUE}
+## Replace Activity Number with descriptive labels
+for(i in 1:6)
+{
+  resultY$Activity<-sub(i,activityLabels$V2[i],resultY$Activity)
+}
+```
+
+### Merge Data Into One Data Set
+```{r resultsubject,resultY,resultX}
+## Merge data into one Data set
+tidyDataSet <- cbind.data.frame(resultsubject,resultY,resultX)
+```
+The following function *cbind* merges data together through appending the columns together.
+
+### Extract Measurements on Mean and Stb
+
+```{r tidyDataSet}
+## Extract measurements on mean and standard deviation.
+measurementsData <- tidyDataSet[,1:2]
+measurementsData <- cbind.data.frame(measurementsData,tidyDataSet[,grep("mean()|std()",names(tidyDataSet))])
+measurementsData <- tbl_df(measurementsData)
+```
+To extract the specific columns with values of *mean* and *std* the function *grep* was used with and or expression.
+
+### Group and Obtain Averages over Activities and Subjects
+
+```{r measurementsData}
+## Tidy data set with the average of each variable for each activity and each subject
+GroupedData <- group_by(measurementsData, Activity, Subject)
+GroupedData <- summarise_each(GroupedData, funs(mean))
+write.table(GroupedData,"tidy_Data.txt",row.names = FALSE)
+```
+The following code first groups according to activity and then subject, and then the data is summarised which obtains the averages over the grouped data. The final instruction writes the final tidy data to a text file named *tidy_Data.txt*.
+
